@@ -9,12 +9,13 @@ testPack  = [1..20] ++ [jA] ++ [21..40] ++ [jB] ++ [41..52]
 testPack' = [1..20] ++ [jB] ++ [21..40] ++ [jA] ++ [41..52]
 
 -- TODO: Actually take input for key
-rawkey = toStream (take 10 (repeat 'A'))
+rawkey = toKeyStream (take 4 (repeat 'A'))
 
 -- TODO: actually take input for message
 message = "hello aunt matilda"
 
 toStream i = [ord c - 13 | c <- (map toUpper i), isAsciiUpper c]
+toKeyStream i = [ord c - 64 | c <- (map toUpper i), isAsciiUpper c]
 
 -- doesn't quite work when 1 is at the front
 cutDeck deck =
@@ -33,6 +34,7 @@ moveJokerB deck = moveJoker jB (moveJoker jB deck)
 
 moveJokers deck = moveJokerB (moveJokerA deck)
 
+-- Swap the segments of the deck before/after the first/second joker
 tripleCut deck =
   let front    = takeWhile (<53) deck
       middle   = takeWhile (<53) (drop ((length front) + 1) deck)
@@ -40,31 +42,45 @@ tripleCut deck =
       jOrder   = filter (>=53) deck
   in back ++ [head jOrder] ++ middle ++ [last jOrder] ++ front
 
+-- Cut deck at index of the value of the last card
+-- leaving the last card in place
 countCut deck
     | last deck >= 53 = deck
-    | otherwise       =
-        let offset  = fromIntegral (last deck)
-            front   = take offset deck
-            middle  = drop offset deck
-        in (init middle) ++ front ++ [last deck]
+    | otherwise       = cutAt (fromIntegral (last deck)) deck
 
-cardN card deck = let c = fromIntegral (deck !! card)
+cutAt offset deck =
+    let front  = take offset deck
+        middle = drop offset deck
+    in (init middle) ++ front ++ [last deck]
+
+-- read the card at index N from the deck
+readCardN card deck = let c = fromIntegral (deck !! card)
     in if c >= 53 then 53 else c
 
-streamCard deck = fromIntegral (deck !! (cardN 0 deck))
+-- get the value of the next number in the stream
+nextStreamChar deck = fromIntegral (deck !! (readCardN 0 deck))
 
-streamChar' deck = let sc = streamCard (deckStep deck)
-    in if sc >= 53 then streamChar' (deckStep deck) else sc
+-- Get the stream character for this state in the deck
+streamValue deck = let sc = nextStreamChar (deckStep deck)
+    in if sc >= 53 then streamValue (deckStep deck) else sc
 
+-- Do the steps that iterate the deck
 deckStep deck = countCut (tripleCut (moveJokers deck))
 
-cipherStep deck =
-    let c       = streamChar' deck
+-- A single step of the algo to generate the keystream from a deck
+keyStreamStep deck =
+    let c       = streamValue deck
         stepped = deckStep deck
-    in if c >= 53 then cipherStep stepped else (c, stepped)
+    in if c >= 53 then keyStreamStep stepped else (c, stepped)
 
-iterStream prev = cipherStep (snd prev)
+-- A single step of the algo to key the deck based on a string
+keyDeck key deck
+    | length key == 0 = deck
+    | otherwise       = keyDeck (tail key) (cutAt (head key) (deckStep deck))
 
+iterStream prev = keyStreamStep (snd prev)
+
+-- make an infinite keystream. Don't print to screen ;)
 newKeystream deck = [fst s | s <- iterate iterStream (0, deck), (fst s) /= 0]
 
 testStream = newKeystream pack
