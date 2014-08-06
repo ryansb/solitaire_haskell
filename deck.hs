@@ -62,3 +62,9 @@ cipherStep deck =
     let c       = streamChar' deck
         stepped = deckStep deck
     in if c >= 53 then cipherStep stepped else (c, stepped)
+
+iterStream prev = cipherStep (snd prev)
+
+newKeystream deck = [fst s | s <- iterate iterStream (0, deck), (fst s) /= 0]
+
+testStream = newKeystream pack
