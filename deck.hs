@@ -23,10 +23,10 @@ cutDeck deck =
 
 
 moveJoker j deck
-    | last deck == j = j : (init deck) -- Joker is bottom
+    | last deck == j = [head deck, j] ++ (tail (init deck)) -- Joker is bottom
     | otherwise      =
         let (ys,zs) = splitAt (length (takeWhile (/=j) deck) + 1) (filter (/=j) deck)
-        in ys ++ (j : zs)
+        in ys ++ [j] ++ zs
 
 moveJokerA deck = moveJoker jA deck
 moveJokerB deck = moveJoker jB (moveJoker jB deck)
@@ -48,12 +48,17 @@ countCut deck
             middle  = drop offset deck
         in (init middle) ++ front ++ [last deck]
 
-cardN card deck = fromIntegral (deck !! card)
+cardN card deck = let c = fromIntegral (deck !! card)
+    in if c >= 53 then 53 else c
 
 streamCard deck = fromIntegral (deck !! (cardN 0 deck))
 
-streamChar' deck = streamCard (deckStep deck)
+streamChar' deck = let sc = streamCard (deckStep deck)
+    in if sc >= 53 then streamChar' (deckStep deck) else sc
 
 deckStep deck = countCut (tripleCut (moveJokers deck))
 
-cipherStep deck = (streamChar' deck, deckStep deck)
+cipherStep deck =
+    let c       = streamChar' deck
+        stepped = deckStep deck
+    in if c >= 53 then cipherStep stepped else (c, stepped)
