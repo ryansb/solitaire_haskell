@@ -1,20 +1,11 @@
 import Data.Char
+import System.Environment (getArgs)
 -- 53 is Joker A
 jA = 53
 -- 54 is Joker B
 jB = 54
 
-pack      = [1..54]
-testPack  = [1..20] ++ [jA] ++ [21..40] ++ [jB] ++ [41..52]
-testPack' = [1..20] ++ [jB] ++ [21..40] ++ [jA] ++ [41..52]
-
--- TODO: Actually take input for key
-rawkey = toKeyStream (take 4 (repeat 'A'))
-
--- TODO: actually take input for message
-message = "hello aunt matilda"
-
-toStream i = [ord c - 13 | c <- (map toUpper i), isAsciiUpper c]
+toStream i = [fromIntegral (ord c - 13) | c <- (map toUpper i), isAsciiUpper c]
 toKeyStream i = [ord c - 64 | c <- (map toUpper i), isAsciiUpper c]
 
 -- doesn't quite work when 1 is at the front
@@ -55,7 +46,7 @@ cutAt offset deck =
 
 -- read the card at index N from the deck
 readCardN card deck = let c = fromIntegral (deck !! card)
-    in if c >= 53 then 53 else c
+    in if c >= 53 then fromIntegral (53) else c
 
 -- get the value of the next number in the stream
 nextStreamChar deck = fromIntegral (deck !! (readCardN 0 deck))
@@ -78,9 +69,36 @@ keyDeck key deck
     | length key == 0 = deck
     | otherwise       = keyDeck (tail key) (cutAt (head key) (deckStep deck))
 
+-- make a fresh deck with key X
+deckWithKey key = keyDeck key [1..54]
+
 iterStream prev = keyStreamStep (snd prev)
 
 -- make an infinite keystream. Don't print to screen ;)
 newKeystream deck = [fst s | s <- iterate iterStream (0, deck), (fst s) /= 0]
 
-testStream = newKeystream pack
+encryptStreams msg stream =
+    let pairs = zip (toStream msg) stream
+    in [((fst x + snd x) `mod` 26) + 65 | x <- pairs]
+
+encryptMessage key msg =
+    let message = pad msg
+        deck    = deckWithKey (toKeyStream key)
+        stream  = newKeystream deck
+        s = encryptStreams message stream
+    in map chr (map fromIntegral s)
+
+-- Pad message to be a multiple of 5 characters
+pad msg
+    | length msg `mod` 5 == 0 = msg
+    | otherwise               = msg ++ (take (-(length msg) `mod` 5 + 5) (repeat 'X'))
+
+encryptContents key fname = do
+    msg <- readFile fname
+    putStrLn (encryptMessage key msg)
+
+main = do
+    args <- getArgs
+    case args of
+        [k,infile] -> encryptContents k infile
+        _ -> putStrLn "error: exactly two arguments needed"
