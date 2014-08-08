@@ -8,11 +8,6 @@ jB = 54
 toStream i = [fromIntegral (ord c - 13) | c <- (map toUpper i), isAsciiUpper c]
 toKeyStream i = [ord c - 64 | c <- (map toUpper i), isAsciiUpper c]
 
--- doesn't quite work when 1 is at the front
-cutDeck deck =
-    let v = splitAt (fromIntegral (head deck) + 1) deck
-    in tail (fst v) ++ [head deck] ++ snd v
-
 
 moveJoker j deck
     | last deck == j = [head deck, j] ++ (tail (init deck)) -- Joker is bottom
@@ -51,26 +46,19 @@ readCardN card deck = let c = fromIntegral (deck !! card)
 -- get the value of the next number in the stream
 nextStreamChar deck = fromIntegral (deck !! (readCardN 0 deck))
 
--- Get the stream character for this state in the deck
-streamValue deck = let sc = nextStreamChar (deckStep deck)
-    in if sc >= 53 then streamValue (deckStep deck) else sc
-
 -- Do the steps that iterate the deck
 deckStep deck = countCut (tripleCut (moveJokers deck))
 
 -- A single step of the algo to generate the keystream from a deck
 keyStreamStep deck =
-    let c       = streamValue deck
-        stepped = deckStep deck
+    let stepped = deckStep deck
+        c       = nextStreamChar stepped
     in if c >= 53 then keyStreamStep stepped else (c, stepped)
 
 -- A single step of the algo to key the deck based on a string
 keyDeck key deck
     | length key == 0 = deck
     | otherwise       = keyDeck (tail key) (cutAt (head key) (deckStep deck))
-
--- make a fresh deck with key X
-deckWithKey key = keyDeck key [1..54]
 
 iterStream prev = keyStreamStep (snd prev)
 
@@ -81,17 +69,17 @@ encryptStreams msg stream =
     let pairs = zip (toStream msg) stream
     in [((fst x + snd x) `mod` 26) + 65 | x <- pairs]
 
-encryptMessage key msg =
-    let message = pad msg
-        deck    = deckWithKey (toKeyStream key)
-        stream  = newKeystream deck
-        s = encryptStreams message stream
-    in map chr (map fromIntegral s)
-
 -- Pad message to be a multiple of 5 characters
 pad msg
     | length msg `mod` 5 == 0 = msg
     | otherwise               = msg ++ (take (-(length msg) `mod` 5 + 5) (repeat 'X'))
+
+encryptMessage key msg =
+    let message = pad msg
+        deck    = keyDeck (toKeyStream key) [1..54]
+        stream  = newKeystream deck
+        s = encryptStreams message stream
+    in map chr (map fromIntegral s)
 
 encryptContents key fname = do
     msg <- readFile fname
