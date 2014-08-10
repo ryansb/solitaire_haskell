@@ -40,11 +40,11 @@ cutAt offset deck =
     in (init middle) ++ front ++ [last deck]
 
 -- read the card at index N from the deck
-readCardN card deck = let c = fromIntegral (deck !! card)
+readCardN deck card = let c = fromIntegral (deck !! card)
     in if c >= 53 then fromIntegral (53) else c
 
 -- get the value of the next number in the stream
-nextStreamChar deck = fromIntegral (deck !! (readCardN 0 deck))
+nextStreamChar deck = fromIntegral (deck !! (readCardN deck 0))
 
 -- Do the steps that iterate the deck
 deckStep deck = countCut (tripleCut (moveJokers deck))
@@ -56,9 +56,9 @@ keyStreamStep deck =
     in if c >= 53 then keyStreamStep stepped else (c, stepped)
 
 -- A single step of the algo to key the deck based on a string
-keyDeck key deck
+keyDeck deck key
     | length key == 0 = deck
-    | otherwise       = keyDeck (tail key) (cutAt (head key) (deckStep deck))
+    | otherwise       = keyDeck (cutAt (head key) (deckStep deck)) (tail key)
 
 iterStream prev = keyStreamStep (snd prev)
 
@@ -74,19 +74,24 @@ pad msg
     | length msg `mod` 5 == 0 = msg
     | otherwise               = msg ++ (take (-(length msg) `mod` 5 + 5) (repeat 'X'))
 
+intersperse' msg
+    | length msg < 5 = msg
+    | otherwise      = take 5 msg ++ " " ++ intersperse' (drop 5 msg)
+
 encryptMessage key msg =
     let message = pad msg
-        deck    = keyDeck (toKeyStream key) [1..54]
+        deck    = keyDeck [1..54] (toKeyStream key)
         stream  = newKeystream deck
         s = encryptStreams message stream
     in map chr (map fromIntegral s)
 
 encryptContents key fname = do
     msg <- readFile fname
-    putStrLn (encryptMessage key msg)
+    putStrLn (intersperse' (encryptMessage key msg))
 
 main = do
     args <- getArgs
     case args of
         [k,infile] -> encryptContents k infile
+        [decrypt,k,infile] -> encryptContents k infile
         _ -> putStrLn "error: exactly two arguments needed"
