@@ -79,11 +79,11 @@ intersperse' msg
     | otherwise      = take 5 msg ++ " " ++ intersperse' (drop 5 msg)
 
 encryptMessage key msg =
-    let message = pad msg
-        deck    = keyDeck [1..54] (toKeyStream key)
-        stream  = newKeystream deck
-        s = encryptStreams message stream
-    in map chr (map fromIntegral s)
+    let message    = pad msg
+        deck       = keyDeck [1..54] (toKeyStream key)
+        stream     = newKeystream deck
+        cipherText = encryptStreams message stream
+    in map chr (map fromIntegral cipherText)
 
 encryptContents key fname = do
     msg <- readFile fname
